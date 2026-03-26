@@ -1,97 +1,202 @@
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
-import skills from '../../skills.json';
+import { useState } from 'react';
+import {
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
-
+type ShoppingItem = {
+  id: string;
+  text: string;
+  done: boolean;
+};
 
 export default function HomeScreen() {
+  const [itemText, setItemText] = useState('');
+  const [items, setItems] = useState<ShoppingItem[]>([]);
+
+  const addItem = () => {
+    if (itemText.trim() === '') return;
+
+    const newItem: ShoppingItem = {
+      id: Date.now().toString(),
+      text: itemText,
+      done: false,
+    };
+
+    setItems([...items, newItem]);
+    setItemText('');
+  };
+
+  const toggleItem = (id: string) => {
+    setItems(
+      items.map((item) =>
+        item.id === id ? { ...item, done: !item.done } : item
+      )
+    );
+  };
+
+  const deleteItem = (id: string) => {
+    setItems(items.filter((item) => item.id !== id));
+  };
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.card}>
-        <Image
-          source={{ uri: 'https://i.pravatar.cc/300' }}
-          style={styles.avatar}
+    <View style={styles.container}>
+      <View style={styles.formRow}>
+        <TextInput
+          style={styles.input}
+          placeholder="new item"
+          value={itemText}
+          onChangeText={setItemText}
         />
 
-        <Text style={styles.name}>Emina Karalić</Text>
-
-        <Text style={styles.bio}>
-          Computer Science student interested in software development,
-          business analytics, and building useful digital products.
-        </Text>
-
-        <View style={styles.separator} />
-
-        <View style={styles.skillsContainer}>
-          {skills.map((item, index) => (
-            <View
-              key={index}
-              style={[styles.skillBadge, { backgroundColor: item.color }]}
-            >
-              <Text style={styles.skillText}>
-                {item.skill} {getEmoji(item.level)}
-              </Text>
-            </View>
-          ))}
-        </View>
+        <TouchableOpacity style={styles.addButton} onPress={addItem}>
+          <Text style={styles.addButtonText}>ADD ITEM</Text>
+        </TouchableOpacity>
       </View>
-    </ScrollView>
-  );
-}
 
-function getEmoji(level: string) {
-  if (level === 'advanced') return '💪';
-  if (level === 'intermediate') return '👍';
-  return '👶';
+      <View style={styles.titleBox}>
+        <Text style={styles.title}>SHOPPING LIST</Text>
+      </View>
+
+      <FlatList
+        data={items}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <View style={styles.itemRow}>
+            <TouchableOpacity
+              style={styles.itemTextContainer}
+              onPress={() => toggleItem(item.id)}
+            >
+              <Text
+                style={[
+                  styles.itemText,
+                  item.done && styles.itemTextDone,
+                ]}
+              >
+                {item.text}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={styles.actions}>
+              <TouchableOpacity
+                style={styles.checkButton}
+                onPress={() => toggleItem(item.id)}
+              >
+                <Text style={styles.checkButtonText}>
+                  {item.done ? '☑' : '☐'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => deleteItem(item.id)}
+              >
+                <Text style={styles.deleteButtonText}>X</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+        ListEmptyComponent={
+          <Text style={styles.emptyText}>List is empty</Text>
+        }
+      />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexGrow: 1,
+    flex: 1,
+    padding: 20,
+    paddingTop: 60,
+    backgroundColor: '#fff',
+  },
+  formRow: {
+    flexDirection: 'row',
+    marginBottom: 20,
+  },
+  input: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#999',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    marginRight: 8,
+  },
+  addButton: {
+    backgroundColor: '#3daee9',
+    paddingHorizontal: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#f5f5f5',
   },
-  card: {
-    width: '100%',
-    maxWidth: 350,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 18,
-    elevation: 4,
+  addButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 12,
   },
-  avatar: {
-    width: '100%',
-    height: 180,
-    borderRadius: 8,
-    marginBottom: 16,
+  titleBox: {
+    borderWidth: 1,
+    borderColor: '#999',
+    paddingVertical: 12,
+    marginBottom: 20,
+    alignItems: 'center',
   },
-  name: {
-    fontSize: 26,
-    fontWeight: '700',
-    marginBottom: 10,
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
   },
-  bio: {
-    fontSize: 15,
-    marginBottom: 16,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: '#ccc',
-    marginBottom: 16,
-  },
-  skillsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  skillBadge: {
-    paddingVertical: 8,
+  itemRow: {
+    backgroundColor: '#25bdf2',
+    marginBottom: 12,
+    paddingVertical: 12,
     paddingHorizontal: 12,
-    borderRadius: 20,
-    margin: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  skillText: {
-    fontSize: 13,
-    fontWeight: '600',
+  itemTextContainer: {
+    flex: 1,
+  },
+  itemText: {
+    fontSize: 18,
+    color: '#000',
+  },
+  itemTextDone: {
+    textDecorationLine: 'line-through',
+    opacity: 0.6,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  checkButton: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  checkButtonText: {
+    fontSize: 22,
+    color: '#1d2cff',
+    fontWeight: 'bold',
+  },
+  deleteButton: {
+    backgroundColor: '#ff4d4d',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  emptyText: {
+    marginTop: 20,
+    textAlign: 'center',
+    color: '#777',
+    fontSize: 16,
   },
 });
