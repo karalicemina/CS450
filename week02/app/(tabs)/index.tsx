@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
   StyleSheet,
   Text,
@@ -23,23 +25,73 @@ type WeatherData = {
   }[];
 };
 
+type WeatherCache = {
+  [city: string]: WeatherData;
+};
+
+const STORAGE_KEY = 'weather_cache';
+const API_KEY = '505a8a20724e28e91fb629d691b9998d';
+
 export default function HomeScreen() {
   const [city, setCity] = useState('');
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [error, setError] = useState('');
+  const [cache, setCache] = useState<WeatherCache>({});
+  const [loading, setLoading] = useState(false);
+  const [sourceMessage, setSourceMessage] = useState('');
 
-  const API_KEY = '505a8a20724e28e91fb629d691b9998d';
+  useEffect(() => {
+    loadCachedWeather();
+  }, []);
+
+  const loadCachedWeather = async () => {
+    try {
+      const storedData = await AsyncStorage.getItem(STORAGE_KEY);
+
+      if (storedData) {
+        const parsedCache: WeatherCache = JSON.parse(storedData);
+        setCache(parsedCache);
+      }
+    } catch (err) {
+      console.log('Error loading cache:', err);
+    }
+  };
+
+  const saveCache = async (newCache: WeatherCache) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newCache));
+      setCache(newCache);
+    } catch (err) {
+      console.log('Error saving cache:', err);
+    }
+  };
 
   const getWeather = async () => {
-    if (city.trim() === '') {
+    const normalizedCity = city.trim().toLowerCase();
+
+    if (normalizedCity === '') {
       setError('Please enter a city name');
       setWeather(null);
+      setSourceMessage('');
       return;
     }
 
+    setLoading(true);
+    setError('');
+    setSourceMessage('');
+
     try {
+      if (cache[normalizedCity]) {
+        setWeather(cache[normalizedCity]);
+        setSourceMessage('Loaded from saved data');
+        setLoading(false);
+        return;
+      }
+
       const response = await fetch(
-        `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${API_KEY}&units=metric`
+        `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(
+          city.trim()
+        )}&appid=${API_KEY}&units=metric`
       );
 
       const data = await response.json();
@@ -47,20 +99,51 @@ export default function HomeScreen() {
       if (response.status === 404) {
         setError('City not found');
         setWeather(null);
+        setSourceMessage('');
+        setLoading(false);
         return;
       }
 
       if (!response.ok) {
-        setError('Something went wrong');
+        setError(data.message || 'Something went wrong');
         setWeather(null);
+        setSourceMessage('');
+        setLoading(false);
         return;
       }
 
-      setWeather(data);
-      setError('');
+      const weatherData: WeatherData = {
+        name: data.name,
+        sys: {
+          country: data.sys.country,
+        },
+        base: data.base,
+        main: {
+          temp: data.main.temp,
+        },
+        weather: [
+          {
+            description: data.weather[0].description,
+            icon: data.weather[0].icon,
+          },
+        ],
+      };
+
+      setWeather(weatherData);
+      setSourceMessage('Loaded from API');
+
+      const updatedCache = {
+        ...cache,
+        [normalizedCity]: weatherData,
+      };
+
+      await saveCache(updatedCache);
     } catch (err) {
       setError('Network error');
       setWeather(null);
+      setSourceMessage('');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -81,7 +164,13 @@ export default function HomeScreen() {
         <Text style={styles.searchButtonText}>SEARCH</Text>
       </TouchableOpacity>
 
+      {loading && <ActivityIndicator size="large" style={styles.loader} />}
+
       {error ? <Text style={styles.error}>{error}</Text> : null}
+
+      {sourceMessage ? (
+        <Text style={styles.sourceMessage}>{sourceMessage}</Text>
+      ) : null}
 
       {weather && (
         <View style={styles.card}>
@@ -143,6 +232,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  loader: {
+    marginTop: 10,
+  },
   card: {
     backgroundColor: '#f4f7f4',
     borderWidth: 1,
@@ -181,5 +273,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 10,
     fontSize: 16,
+  },
+  sourceMessage: {
+    textAlign: 'center',
+    marginTop: 10,
+    color: '#333',
+    fontSize: 14,
   },
 });
