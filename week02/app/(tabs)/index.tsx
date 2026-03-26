@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  FlatList,
+  Image,
   StyleSheet,
   Text,
   TextInput,
@@ -8,102 +8,105 @@ import {
   View,
 } from 'react-native';
 
-type ShoppingItem = {
-  id: string;
-  text: string;
-  done: boolean;
+type WeatherData = {
+  name: string;
+  sys: {
+    country: string;
+  };
+  base: string;
+  main: {
+    temp: number;
+  };
+  weather: {
+    description: string;
+    icon: string;
+  }[];
 };
 
 export default function HomeScreen() {
-  const [itemText, setItemText] = useState('');
-  const [items, setItems] = useState<ShoppingItem[]>([]);
+  const [city, setCity] = useState('');
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [error, setError] = useState('');
 
-  const addItem = () => {
-    if (itemText.trim() === '') return;
+  const API_KEY = '505a8a20724e28e91fb629d691b9998d';
 
-    const newItem: ShoppingItem = {
-      id: Date.now().toString(),
-      text: itemText,
-      done: false,
-    };
+  const getWeather = async () => {
+    if (city.trim() === '') {
+      setError('Please enter a city name');
+      setWeather(null);
+      return;
+    }
 
-    setItems([...items, newItem]);
-    setItemText('');
-  };
+    try {
+      const response = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${API_KEY}&units=metric`
+      );
 
-  const toggleItem = (id: string) => {
-    setItems(
-      items.map((item) =>
-        item.id === id ? { ...item, done: !item.done } : item
-      )
-    );
-  };
+      const data = await response.json();
 
-  const deleteItem = (id: string) => {
-    setItems(items.filter((item) => item.id !== id));
+      if (response.status === 404) {
+        setError('City not found');
+        setWeather(null);
+        return;
+      }
+
+      if (!response.ok) {
+        setError('Something went wrong');
+        setWeather(null);
+        return;
+      }
+
+      setWeather(data);
+      setError('');
+    } catch (err) {
+      setError('Network error');
+      setWeather(null);
+    }
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.formRow}>
-        <TextInput
-          style={styles.input}
-          placeholder="new item"
-          value={itemText}
-          onChangeText={setItemText}
-        />
+      <Text style={styles.instructions}>
+        Enter city name and press search button
+      </Text>
 
-        <TouchableOpacity style={styles.addButton} onPress={addItem}>
-          <Text style={styles.addButtonText}>ADD ITEM</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.titleBox}>
-        <Text style={styles.title}>SHOPPING LIST</Text>
-      </View>
-
-      <FlatList
-        data={items}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.itemRow}>
-            <TouchableOpacity
-              style={styles.itemTextContainer}
-              onPress={() => toggleItem(item.id)}
-            >
-              <Text
-                style={[
-                  styles.itemText,
-                  item.done && styles.itemTextDone,
-                ]}
-              >
-                {item.text}
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.actions}>
-              <TouchableOpacity
-                style={styles.checkButton}
-                onPress={() => toggleItem(item.id)}
-              >
-                <Text style={styles.checkButtonText}>
-                  {item.done ? '☑' : '☐'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => deleteItem(item.id)}
-              >
-                <Text style={styles.deleteButtonText}>X</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>List is empty</Text>
-        }
+      <TextInput
+        placeholder="Enter city name..."
+        value={city}
+        onChangeText={setCity}
+        style={styles.input}
       />
+
+      <TouchableOpacity style={styles.searchButton} onPress={getWeather}>
+        <Text style={styles.searchButtonText}>SEARCH</Text>
+      </TouchableOpacity>
+
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+
+      {weather && (
+        <View style={styles.card}>
+          <Text style={styles.cityText}>
+            {weather.name} {weather.sys.country}
+          </Text>
+
+          <Text style={styles.stationText}>{weather.base}</Text>
+
+          <Text style={styles.tempText}>
+            {Math.round(weather.main.temp)}°C
+          </Text>
+
+          <Image
+            source={{
+              uri: `https://openweathermap.org/img/w/${weather.weather[0].icon}.png`,
+            }}
+            style={styles.icon}
+          />
+
+          <Text style={styles.descriptionText}>
+            {weather.weather[0].description}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -111,92 +114,72 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#efe3cf',
     padding: 20,
-    paddingTop: 60,
-    backgroundColor: '#fff',
+    paddingTop: 80,
   },
-  formRow: {
-    flexDirection: 'row',
-    marginBottom: 20,
+  instructions: {
+    fontSize: 18,
+    marginBottom: 15,
+    textAlign: 'center',
   },
   input: {
-    flex: 1,
+    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#999',
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    marginRight: 8,
-  },
-  addButton: {
-    backgroundColor: '#3daee9',
+    borderColor: '#ccc',
     paddingHorizontal: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  addButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 12,
-  },
-  titleBox: {
-    borderWidth: 1,
-    borderColor: '#999',
     paddingVertical: 12,
-    marginBottom: 20,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  itemRow: {
-    backgroundColor: '#25bdf2',
     marginBottom: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
+    fontSize: 16,
+  },
+  searchButton: {
+    backgroundColor: '#2f9cf4',
+    paddingVertical: 14,
     alignItems: 'center',
-    justifyContent: 'space-between',
+    marginBottom: 20,
   },
-  itemTextContainer: {
-    flex: 1,
-  },
-  itemText: {
-    fontSize: 18,
-    color: '#000',
-  },
-  itemTextDone: {
-    textDecorationLine: 'line-through',
-    opacity: 0.6,
-  },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  checkButton: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  checkButtonText: {
-    fontSize: 22,
-    color: '#1d2cff',
-    fontWeight: 'bold',
-  },
-  deleteButton: {
-    backgroundColor: '#ff4d4d',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  deleteButtonText: {
+  searchButtonText: {
     color: '#fff',
+    fontSize: 16,
     fontWeight: 'bold',
   },
-  emptyText: {
-    marginTop: 20,
+  card: {
+    backgroundColor: '#f4f7f4',
+    borderWidth: 1,
+    borderColor: '#333',
+    padding: 20,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  cityText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 6,
+  },
+  stationText: {
+    fontSize: 18,
+    color: '#444',
+    marginBottom: 10,
+    textTransform: 'capitalize',
+  },
+  tempText: {
+    fontSize: 54,
+    fontWeight: '300',
+    marginBottom: 10,
+  },
+  icon: {
+    width: 100,
+    height: 100,
+    marginBottom: 8,
+  },
+  descriptionText: {
+    fontSize: 18,
+    textTransform: 'capitalize',
+  },
+  error: {
+    color: 'red',
     textAlign: 'center',
-    color: '#777',
+    marginTop: 10,
     fontSize: 16,
   },
 });
